@@ -3,7 +3,6 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
         android:name=".TesteWorkmanagerApplication"
@@ -25,11 +24,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <service
-            android:name=".WorkManagerService"
-            android:permission="android.permission.FOREGROUND_SERVICE"
-            android:exported="true" />
 
         <receiver
             android:name=".BootReceiver"
