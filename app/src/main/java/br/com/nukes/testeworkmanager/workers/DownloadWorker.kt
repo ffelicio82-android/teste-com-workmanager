@@ -4,16 +4,15 @@ import android.content.Context
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.models.AppModel
-import br.com.nukes.testeworkmanager.domain.usecases.DeleteByPackageNameUseCase
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
-class InstallBuildWorker(
+class DownloadWorker(
     context: Context,
-    params: WorkerParameters,
-    private val deleteByPackageNameUseCase: DeleteByPackageNameUseCase
+    params: WorkerParameters
 ) : BaseWorker(context, params), KoinComponent {
 
     private val workManager: WorkManager by inject()
@@ -26,26 +25,31 @@ class InstallBuildWorker(
     override val key: String = "${TAG}_${appModel.packageName.replace(".", "_")}"
 
     override suspend fun executeWork(): WorkerResult {
-        return deleteByPackageNameUseCase(appModel.packageName).fold(
-            onSuccess = { WorkerResult.Success },
-            onFailure = { error ->
-                when (error) {
-                    is IllegalArgumentException -> WorkerResult.Retry()
-                    else -> WorkerResult.Failure
-                }
-            }
-        )
+        return WorkerResult.Success
     }
 
     override fun nextWorker() {
-        val request = OneTimeWorkRequest.Builder(SendDataWorker::class.java)
-            .addTag(SendDataWorker.TAG)
-            .addTag(DEFAULT_TAG)
-            .build()
+        val request: OneTimeWorkRequest = when (appModel.packageName.contains("build")) {
+            true -> {
+                OneTimeWorkRequest.Builder(InstallBuildWorker::class.java)
+                    .addTag(InstallBuildWorker.TAG)
+                    .addTag("${InstallBuildWorker.TAG}_${appModel.packageName.replace(".", "_")}")
+            }
+            else -> {
+                OneTimeWorkRequest.Builder(InstallAppWorker::class.java)
+                    .addTag(InstallAppWorker.TAG)
+                    .addTag("${InstallAppWorker.TAG}_${appModel.packageName.replace(".", "_")}")
+            }
+        }
+        .setInputData(workDataOf("data" to Json.encodeToString(appModel)))
+        .addTag(DEFAULT_TAG)
+        .build()
+
+
         workManager.enqueue(request)
     }
 
     companion object {
-        const val TAG = "install_build_worker"
+        const val TAG = "download_worker"
     }
 }

@@ -8,7 +8,7 @@ import androidx.work.WorkerParameters
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
-class InitialWorker(
+class Worker2(
     context: Context,
     params: WorkerParameters,
 ) : BaseWorker(context, params), KoinComponent {
@@ -22,28 +22,20 @@ class InitialWorker(
             Log.i(TAG, "Executing work ${System.currentTimeMillis()}")
             WorkerResult.Success
         } catch (e: Exception) {
-            when(e) {
-                is SecurityException -> {
-                    Log.e(TAG, "Security exception encountered, retrying...")
-                    WorkerResult.Failure
-                }
-                else -> {
-                    Log.e(TAG, "An unexpected error occurred: ${e.message}")
-                    WorkerResult.Retry()
-                }
-            }
+            Log.e(TAG, "Error executing work: ${e.message}", e)
+            WorkerResult.Retry()
         }
     }
 
     override fun nextWorker() {
-        val request = OneTimeWorkRequest.Builder(Worker1::class.java)
-            .addTag(Worker1.TAG)
+        val request = OneTimeWorkRequest.Builder(Worker3::class.java)
+            .addTag(Worker3.TAG)
             .addTag(DEFAULT_TAG)
             .build()
         workManager.enqueue(request)
     }
 
-    companion object {
-        const val TAG = "initial_worker"
+    companion object Companion {
+        const val TAG = "worker_2"
     }
 }

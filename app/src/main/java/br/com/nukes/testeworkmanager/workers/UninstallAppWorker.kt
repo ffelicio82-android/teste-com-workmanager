@@ -10,7 +10,7 @@ import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
-class InstallBuildWorker(
+class UninstallAppWorker(
     context: Context,
     params: WorkerParameters,
     private val deleteByPackageNameUseCase: DeleteByPackageNameUseCase
@@ -25,6 +25,8 @@ class InstallBuildWorker(
 
     override val key: String = "${TAG}_${appModel.packageName.replace(".", "_")}"
 
+    override val stopExecutionByKey: Boolean = true
+
     override suspend fun executeWork(): WorkerResult {
         return deleteByPackageNameUseCase(appModel.packageName).fold(
             onSuccess = { WorkerResult.Success },
@@ -38,14 +40,17 @@ class InstallBuildWorker(
     }
 
     override fun nextWorker() {
-        val request = OneTimeWorkRequest.Builder(SendDataWorker::class.java)
-            .addTag(SendDataWorker.TAG)
+        val request = OneTimeWorkRequest.Builder(FinalizationProcessAppsWorker::class.java)
+            .addTag(FinalizationProcessAppsWorker.TAG)
+            .addTag(
+                "${FinalizationProcessAppsWorker.TAG}_${TAG}_${appModel.packageName.replace(".", "_")}"
+            )
             .addTag(DEFAULT_TAG)
             .build()
         workManager.enqueue(request)
     }
 
     companion object {
-        const val TAG = "install_build_worker"
+        const val TAG = "uninstall_app_worker"
     }
 }
