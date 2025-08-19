@@ -2,9 +2,12 @@ package br.com.nukes.testeworkmanager.workers
 
 import android.content.Context
 import android.util.Log
+import androidx.work.Data
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import br.com.nukes.testeworkmanager.workers.WorkerResult.Retry
+import br.com.nukes.testeworkmanager.workers.WorkerResult.Success
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -20,16 +23,16 @@ class Worker2(
     override suspend fun executeWork(): WorkerResult {
         return try {
             Log.i(TAG, "Executing work ${System.currentTimeMillis()}")
-            WorkerResult.Success
+            Success()
         } catch (e: Exception) {
             Log.e(TAG, "Error executing work: ${e.message}", e)
-            WorkerResult.Retry()
+            Retry()
         }
     }
 
-    override fun nextWorker() {
-        val request = OneTimeWorkRequest.Builder(Worker3::class.java)
-            .addTag(Worker3.TAG)
+    override fun nextWorker(data: Data?) {
+        val request = OneTimeWorkRequest.Builder(SendRequestDataWorker::class.java)
+            .addTag(SendRequestDataWorker.TAG)
             .addTag(DEFAULT_TAG)
             .build()
         workManager.enqueue(request)

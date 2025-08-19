@@ -12,6 +12,7 @@ sealed class NetworkException(message: String? = null, cause: Throwable? = null)
     data class ServiceUnavailableException(val code: Int = 503, override val message: String? = null, override val cause: Throwable? = null) : NetworkException(message, cause)
     data class GatewayTimeoutException(val code: Int = 504, override val message: String? = null, override val cause: Throwable? = null) : NetworkException(message, cause)
 
+    data class HttpFailureException(override val message: String? = null, override val cause: Throwable? = null) : NetworkException(message, cause)
     data class NetworkUnavailableException(override val message: String? = null, override val cause: Throwable? = null) : NetworkException(message, cause)
 }
 

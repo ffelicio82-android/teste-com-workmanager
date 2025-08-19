@@ -7,4 +7,7 @@ object Constants {
     const val TEN = 10
 
     const val SIXTY = 60L
+
+    const val BATCH_ID = "batchId"
+    const val DATA = "data"
 }

@@ -3,26 +3,34 @@ package br.com.nukes.testeworkmanager.workers
 import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy.APPEND
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
+import br.com.nukes.testeworkmanager.utils.Constants.DATA
 import br.com.nukes.testeworkmanager.utils.Constants.ONE
+import br.com.nukes.testeworkmanager.utils.Constants.ZERO
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeUnit.SECONDS
 
 sealed class WorkerResult {
-    object Success : WorkerResult()
-    data class Retry(val reason: RetryReason? = null) : WorkerResult()
-    object Failure : WorkerResult()
-    object Finish : WorkerResult()
+    data class Success(val data: Data? = null) : WorkerResult()
+    data class Retry(val reason: RetryReason? = null, val data: Data? = null) : WorkerResult()
+    data class Failure(val data: Data? = null) : WorkerResult()
 }
 
 sealed class RetryReason(val retryLimit: Int, val intervalRetry: Long) {
     object Unauthorized : RetryReason(retryLimit = 1, intervalRetry = 30)
+    object SocketTimeout : RetryReason(retryLimit = 6, intervalRetry = 3)
+    object NetworkUnreachable : RetryReason(retryLimit = 3, intervalRetry = 20)
+    object IoTransient : RetryReason(retryLimit = 3, intervalRetry = 20)
     object Timeout : RetryReason(retryLimit = 3, intervalRetry = 20)
+    object Database : RetryReason(retryLimit = 1, intervalRetry = 5)
 }
 
 abstract class BaseWorker(
@@ -41,59 +49,48 @@ abstract class BaseWorker(
 
     abstract suspend fun executeWork() : WorkerResult
 
-    open fun nextWorker() {
-        // este método pode ser sobrescrito para definir o próximo Worker a ser executado
+    protected open fun nextWorker(data: Data? = null) {
+        /* override se precisar enfileirar próximo passo */
     }
 
-    open fun finishExecutions(callInRetry: Boolean = false) {
+    protected open fun finishExecutions(callInRetry: Boolean = false) {
         workManager.cancelAllWorkByTag(key)
     }
 
-    // este método pode ser sobrescrito para definir o que fazer em caso de erro
-    open fun finishAllExecutions(callInRetry: Boolean = false) {
+    protected open fun finishAllExecutions(callInRetry: Boolean = false) {
         workManager.cancelAllWorkByTag(DEFAULT_TAG)
+    }
+
+    protected open fun onAttemptsExhausted(data: Data? = null) {
+        Log.w("Fernando-tag_${DEFAULT_TAG}", "All retry attempts exhausted for $key")
     }
 
     override suspend fun doWork(): Result {
         return try {
             when (val result = executeWork()) {
                 is WorkerResult.Success -> {
-                    Log.i(DEFAULT_TAG, "Work completed successfully for $key")
-
-                    // Chama o próximo Worker
-                    nextWorker()
-
-                    Result.success()
+                    Log.i("Fernando-tag_${DEFAULT_TAG}", "Work completed successfully for $key")
+                    nextWorker(result.data)
+                    Result.success(result.data ?: workDataOf())
                 }
                 is WorkerResult.Retry -> {
                     applyRetryHandling(result.reason)
-                    Result.failure()
+                    Result.success(result.data ?: workDataOf())
                 }
                 is WorkerResult.Failure -> {
-                    Log.e(DEFAULT_TAG, "Critical error. Cannot recover from $key")
-                    when (stopExecutionByKey) {
-                        true -> finishExecutions()
-                        false -> finishAllExecutions()
-                    }
-                    Result.failure()
-                }
-                is WorkerResult.Finish -> {
-                    Log.i(DEFAULT_TAG, "Work finished in $key")
-                    when (stopExecutionByKey) {
-                        true -> finishExecutions()
-                        false -> finishAllExecutions()
-                    }
-                    Result.success()
+                    Log.e("Fernando-tag_${DEFAULT_TAG}", "Critical error. Cannot recover from $key")
+                    if (stopExecutionByKey) finishExecutions() else finishAllExecutions()
+                    Result.failure(result.data ?: workDataOf())
                 }
             }
         } catch (e: SecurityException) {
-            Log.e(DEFAULT_TAG, "Security error during work for $key: ${e.message}", e)
+            Log.e("Fernando-tag_${DEFAULT_TAG}", "Security error during work for $key: ${e.message}", e)
             finishExecutions()
             Result.failure()
         } catch (e: Exception) {
-            Log.e(DEFAULT_TAG, "Unexpected error during work for $key: ${e.message}", e)
+            Log.e("Fernando-tag_${DEFAULT_TAG}", "Unexpected error during work for $key: ${e.message}", e)
             applyRetryHandling()
-            Result.failure()
+            Result.success()
         }
     }
 
@@ -101,38 +98,38 @@ abstract class BaseWorker(
         val lastReason = inputData.getString("${key}_last_reason")
         val currentReason = reason?.javaClass?.simpleName
 
-        val actualRetry = when {
-            currentReason != lastReason -> ONE.toInt()
-            else -> inputData.getInt("${key}_${ACTUAL_RETRY_KEY}", 0).plus(ONE.toInt())
-        }
+        val actualRetry = if (currentReason != lastReason) 1
+        else inputData.getInt("${key}_${ACTUAL_RETRY_KEY}", ZERO.toInt()) + ONE.toInt()
 
         val data = inputData.getString("data") ?: "No data provided"
+        val batchId = inputData.getString(BATCH_ID) ?: "No batch ID provided"
         val retryLimit = reason?.retryLimit ?: getRetryLimit()
         val intervalRetry = reason?.intervalRetry ?: getIntervalRetry()
 
-        Log.i(DEFAULT_TAG, "Retry $actualRetry of $retryLimit for $key")
+        Log.i("Fernando-tag_${DEFAULT_TAG}", "Retry $actualRetry of $retryLimit for $key (reason=$currentReason)")
 
-        if (actualRetry > retryLimit) {
-            when (stopExecutionByKey) {
-                true -> finishExecutions(callInRetry = true)
-                false -> finishAllExecutions(callInRetry = true)
-            }
-        } else {
-            val retryRequest = OneTimeWorkRequest.Builder(this::class.java)
-                .setInitialDelay(intervalRetry, SECONDS)
-                .setInputData(
-                    workDataOf(
-                        "${key}_${ACTUAL_RETRY_KEY}" to actualRetry,
-                        "${key}_last_reason" to currentReason,
-                        "data" to data
+        when {
+            actualRetry > retryLimit -> { onAttemptsExhausted(inputData) }
+            else -> {
+                val retryRequest = OneTimeWorkRequest.Builder(this::class.java)
+                    .setInitialDelay(intervalRetry, SECONDS)
+                    .setInputData(
+                        workDataOf(
+                            "${key}_${ACTUAL_RETRY_KEY}" to actualRetry,
+                            "${key}_last_reason" to currentReason,
+                            DATA to data,
+                            BATCH_ID to batchId
+                        )
                     )
-                )
-                .addTag(key)
-                .addTag("retry_$key")
-                .addTag(DEFAULT_TAG)
-                .build()
+                    .addTag(key)
+                    .addTag("retry_$key")
+                    .addTag(DEFAULT_TAG)
+                    .build()
 
-            workManager.enqueue(retryRequest)
+                workManager
+                    .beginUniqueWork(key, APPEND, retryRequest)
+                    .enqueue()
+            }
         }
     }
 

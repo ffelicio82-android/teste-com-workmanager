@@ -17,6 +17,9 @@ interface AppDao {
     @Query("SELECT * FROM apps")
     suspend fun getAll(): List<AppEntity>
 
+    @Query("SELECT * FROM apps WHERE packageName != :build")
+    suspend fun getAllApps(build: String = "build"): List<AppEntity>
+
     @Query("SELECT * FROM apps WHERE packageName = :packageName")
     suspend fun getByPackageName(packageName: String): AppEntity?
 

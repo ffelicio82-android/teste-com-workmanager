@@ -1,7 +1,7 @@
 package br.com.nukes.testeworkmanager.workers
 
 import android.content.Context
-import androidx.work.OneTimeWorkRequest
+import android.util.Log
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import br.com.nukes.testeworkmanager.domain.models.AppModel
@@ -20,29 +20,18 @@ class InstallBuildWorker(
 
     private val appModel: AppModel by lazy {
         val json = inputData.getString("data") ?: throw IllegalArgumentException("AppModel is required")
-        return@lazy Json.decodeFromString<AppModel>(json)
+        Json.decodeFromString<AppModel>(json)
     }
 
-    override val key: String = "${TAG}_${appModel.packageName.replace(".", "_")}"
+    private val batchId by lazy { inputData.getString("batchId") ?: "no_batch" }
+    private val pkgSafe by lazy { appModel.packageName.replace(".", "_") }
+
+    override val key: String = "${TAG}_${batchId}_$pkgSafe"
 
     override suspend fun executeWork(): WorkerResult {
-        return deleteByPackageNameUseCase(appModel.packageName).fold(
-            onSuccess = { WorkerResult.Success },
-            onFailure = { error ->
-                when (error) {
-                    is IllegalArgumentException -> WorkerResult.Retry()
-                    else -> WorkerResult.Failure
-                }
-            }
-        )
-    }
+        Log.i("Fernando-tag_$TAG}", "Executing install build work ${appModel.packageName} in batch $batchId")
 
-    override fun nextWorker() {
-        val request = OneTimeWorkRequest.Builder(SendDataWorker::class.java)
-            .addTag(SendDataWorker.TAG)
-            .addTag(DEFAULT_TAG)
-            .build()
-        workManager.enqueue(request)
+        return WorkerResult.Success()
     }
 
     companion object {

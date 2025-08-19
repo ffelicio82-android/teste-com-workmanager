@@ -1,14 +1,24 @@
 package br.com.nukes.testeworkmanager.workers
 
 import android.content.Context
+import android.util.Log
+import androidx.work.BackoffPolicy
+import androidx.work.Data
 import androidx.work.OneTimeWorkRequest
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.models.AppModel
 import br.com.nukes.testeworkmanager.domain.usecases.DeleteByPackageNameUseCase
+import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
+import br.com.nukes.testeworkmanager.utils.Constants.DATA
+import br.com.nukes.testeworkmanager.workers.WorkerResult.Success
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import java.util.concurrent.TimeUnit
 
 class UninstallAppWorker(
     context: Context,
@@ -20,37 +30,55 @@ class UninstallAppWorker(
 
     private val appModel: AppModel by lazy {
         val json = inputData.getString("data") ?: throw IllegalArgumentException("AppModel is required")
-        return@lazy Json.decodeFromString<AppModel>(json)
+        Json.decodeFromString<AppModel>(json)
     }
 
-    override val key: String = "${TAG}_${appModel.packageName.replace(".", "_")}"
+    private val batchId by lazy { inputData.getString("batchId") ?: "no_batch" }
+    private val pkgSafe by lazy { appModel.packageName.replace(".", "_") }
 
-    override val stopExecutionByKey: Boolean = true
+    override val key: String = "${TAG}_${batchId}_$pkgSafe"
 
     override suspend fun executeWork(): WorkerResult {
-        return deleteByPackageNameUseCase(appModel.packageName).fold(
-            onSuccess = { WorkerResult.Success },
-            onFailure = { error ->
-                when (error) {
-                    is IllegalArgumentException -> WorkerResult.Retry()
-                    else -> WorkerResult.Failure
-                }
-            }
-        )
+        Log.i("Fernando-tag_${TAG}}", "Executing uninstall app work ${appModel.packageName} in batch $batchId")
+
+        // Uninstall the app
+        return Success(workDataOf(DATA to Json.encodeToString(appModel), BATCH_ID to batchId)).also {
+            Log.i("Fernando-tag_${InstallAppWorker.Companion.TAG}", "Successfully uninstalled ${appModel.packageName} in batch $batchId")
+        }
     }
 
-    override fun nextWorker() {
-        val request = OneTimeWorkRequest.Builder(FinalizationProcessAppsWorker::class.java)
-            .addTag(FinalizationProcessAppsWorker.TAG)
-            .addTag(
-                "${FinalizationProcessAppsWorker.TAG}_${TAG}_${appModel.packageName.replace(".", "_")}"
-            )
-            .addTag(DEFAULT_TAG)
-            .build()
-        workManager.enqueue(request)
+    override fun nextWorker(data: Data?) {
+        Log.i("Fernando-tag_${TAG}}", "Executing uninstall nextWorker ${appModel.packageName} in batch $batchId")
+
+        runBlocking { deleteByPackageNameUseCase(appModel.packageName) }.getOrElse {
+            Log.e("Fernando-tag_${TAG}}", "Failed to delete ${appModel.packageName} from database", it)
+        }
+        workManager.enqueue(FinalizationProcessAppsWorker.configureRequest(batchId, data, pkgSafe))
+    }
+
+    override fun onAttemptsExhausted(data: Data?) {
+        super.onAttemptsExhausted(data)
+
+        // remove from DB
+        Log.i("Fernando-tag_${TAG}}", "onAttemptsExhausted ${appModel.packageName} in batch $batchId")
+
+         val json = Json.encodeToString(appModel)
+         val input = workDataOf(DATA to json, BATCH_ID to batchId)
+         workManager.enqueue(FinalizationProcessAppsWorker.configureRequest(batchId, input, pkgSafe))
     }
 
     companion object {
         const val TAG = "uninstall_app_worker"
+
+        fun configureRequest(batchId: String, input: Data, pkgSafe: String): OneTimeWorkRequest  {
+            return OneTimeWorkRequestBuilder<UninstallAppWorker>()
+                .setInputData(input)
+                .addTag(TAG)
+                .addTag("${TAG}_$pkgSafe")
+                .addTag("batch_$batchId")
+                .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
+                .addTag(DEFAULT_TAG)
+                .build()
+        }
     }
 }
