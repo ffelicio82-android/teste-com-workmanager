@@ -3,14 +3,18 @@ package br.com.nukes.testeworkmanager.data.local.preferences.datastore
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import br.com.nukes.testeworkmanager.core.PreferencesException
 import br.com.nukes.testeworkmanager.core.PreferencesException.FetchDataException
 import br.com.nukes.testeworkmanager.data.local.preferences.Configurations
 import br.com.nukes.testeworkmanager.data.local.preferences.PreferencesDataSource
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 object PreferencesKey {
@@ -34,16 +38,23 @@ class DatastoreDataSourceImpl(private val preferences: DataStore<Preferences>): 
     }
 
     override suspend fun fetchConfigurations(): Configurations {
-        return try {
-            val data = runBlocking { preferences.data.first() }
-            Configurations(
-                retryAttempts = data[PreferencesKey.RETRY_ATTEMPTS] ?: 3,
-                intervalAttempts = data[PreferencesKey.INTERVAL_ATTEMPTS] ?: TimeUnit.SECONDS.toSeconds(30L),
-                syncFrequency = data[PreferencesKey.SYNC_FREQUENCY] ?: TimeUnit.MINUTES.toSeconds(1L)
-            )
-        } catch (e: Exception) {
-            throw FetchDataException("Error fetching configurations: ${e.message}", e)
-        }
+        return preferences.data
+            .catch { e ->
+                if (e is IOException) {
+                    emit(emptyPreferences())
+                } else {
+                    throw FetchDataException("Error reading configurations: ${e.message}", e)
+                }
+            }
+            .map { prefs ->
+                Configurations(
+                    retryAttempts = prefs[PreferencesKey.RETRY_ATTEMPTS] ?: 3,
+                    intervalAttempts = prefs[PreferencesKey.INTERVAL_ATTEMPTS]
+                        ?: TimeUnit.SECONDS.toSeconds(30L),
+                    syncFrequency = prefs[PreferencesKey.SYNC_FREQUENCY]
+                        ?: TimeUnit.MINUTES.toSeconds(2L)
+                )
+            }.first()
     }
 
     override fun clearConfigurations(): Boolean {

@@ -24,7 +24,7 @@ class SendNotificationWorker(
         return WorkerResult.Success()
     }
 
-    companion object Companion {
+    companion object {
         const val TAG = "send_notification_worker"
 
         fun configureRequest(batchId: String): OneTimeWorkRequest {

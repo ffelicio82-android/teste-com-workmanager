@@ -45,10 +45,6 @@ class DownloadWorker(
     override suspend fun executeWork(): WorkerResult {
         Log.i("Fernando-tag_${TAG}", "Executing work download ${appModel.packageName} in batch $batchId")
 
-        if (appModel.packageName == "facebook.katana") {
-            return WorkerResult.Retry(SocketTimeout)
-        }
-
         return try {
             downloadUseCase(appModel)
                 .onEach { downloadEvent ->
@@ -56,9 +52,9 @@ class DownloadWorker(
                         is DownloadEvent.Started -> {
                             setProgress(
                                 workDataOf(
-                                    "batchId" to batchId,
-                                    "packageName" to appModel.packageName,
-                                    "progress" to 0
+                                    BATCH_ID to batchId,
+                                    PACKAGE_NAME to appModel.packageName,
+                                    PROGRESS to 0
                                 )
                             )
                             Log.i("Fernando-tag_${TAG}", "Download started for ${appModel.packageName} in batch $batchId")
@@ -66,9 +62,9 @@ class DownloadWorker(
                         is DownloadEvent.Progress -> {
                             setProgress(
                                 workDataOf(
-                                    "batchId" to batchId,
-                                    "packageName" to appModel.packageName,
-                                    "progress" to downloadEvent.percent
+                                    BATCH_ID to batchId,
+                                    PACKAGE_NAME to appModel.packageName,
+                                    PROGRESS to downloadEvent.percent
                                 )
                             )
                             Log.i("Fernando-tag_${TAG}", "Download progress for ${appModel.packageName} in batch $batchId - ${downloadEvent.percent}%")
@@ -90,23 +86,24 @@ class DownloadWorker(
         }
     }
 
-    override fun nextWorker(data: Data?) {
+    override suspend fun nextWorker() {
         val json = Json.encodeToString(appModel)
         val input = workDataOf(DATA to json, BATCH_ID to batchId)
 
-        Log.i("Fernando-tag_${TAG}", "Enqueuing next ${InstallAppWorker.TAG} for ${appModel.packageName} in batch $batchId")
-        workManager.enqueue(InstallAppWorker.configureRequest(batchId, input, pkgSafe))
+        val workerRequest = when (appModel.packageName.lowercase().contains(InstallBuildWorker.BUILD)) {
+            true -> InstallBuildWorker.configureRequest(batchId, input, pkgSafe)
+            false -> InstallAppWorker.configureRequest(batchId, input, pkgSafe)
+        }
+
+        Log.i("Fernando-tag_${TAG}", "Enqueuing next ${workerRequest.tags} for ${appModel.packageName} in batch $batchId")
+        workManager.enqueue(workerRequest)
     }
 
-    override fun onAttemptsExhausted(data: Data?) {
+    override suspend fun onAttemptsExhausted(data: Data?) {
         super.onAttemptsExhausted(data)
 
-        // remove from DB
+        // remove from DB?
         Log.i("Fernando-tag_${TAG}}", "onAttemptsExhausted ${appModel.packageName} in batch $batchId")
-
-        // val json = Json.encodeToString(appModel)
-        // val input = workDataOf(DATA to json, BATCH_ID to batchId)
-        // workManager.enqueue(FinalizationProcessAppsWorker.configureRequest(batchId, input, pkgSafe))
     }
 
     private fun mapToWorkerResult(t: Throwable): WorkerResult {
@@ -121,6 +118,8 @@ class DownloadWorker(
 
     companion object {
         const val TAG = "download_worker"
+        private const val PROGRESS = "progress"
+        private const val PACKAGE_NAME = "packageName"
 
         fun configureRequest(batchId: String, input: Data, pkgSafe: String): OneTimeWorkRequest {
             return OneTimeWorkRequestBuilder<DownloadWorker>()

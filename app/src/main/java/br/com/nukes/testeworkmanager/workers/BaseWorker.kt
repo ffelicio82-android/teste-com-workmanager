@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
-import androidx.work.ExistingWorkPolicy.APPEND
+import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -30,7 +30,7 @@ sealed class RetryReason(val retryLimit: Int, val intervalRetry: Long) {
     object NetworkUnreachable : RetryReason(retryLimit = 3, intervalRetry = 20)
     object IoTransient : RetryReason(retryLimit = 3, intervalRetry = 20)
     object Timeout : RetryReason(retryLimit = 3, intervalRetry = 20)
-    object Database : RetryReason(retryLimit = 1, intervalRetry = 5)
+    object Database : RetryReason(retryLimit = 2, intervalRetry = 5)
 }
 
 abstract class BaseWorker(
@@ -49,8 +49,18 @@ abstract class BaseWorker(
 
     abstract suspend fun executeWork() : WorkerResult
 
-    protected open fun nextWorker(data: Data? = null) {
-        /* override se precisar enfileirar próximo passo */
+    @Suppress("RedundantSuspendModifier")
+    protected open suspend fun onBeforeNextWorker() {
+        /* override */
+    }
+
+    protected open suspend fun nextWorker(data: Data) {
+        /* override */
+    }
+
+    @Suppress("RedundantSuspendModifier")
+    protected open suspend fun nextWorker() {
+        /* override */
     }
 
     protected open fun finishExecutions(callInRetry: Boolean = false) {
@@ -61,7 +71,7 @@ abstract class BaseWorker(
         workManager.cancelAllWorkByTag(DEFAULT_TAG)
     }
 
-    protected open fun onAttemptsExhausted(data: Data? = null) {
+    protected open suspend fun onAttemptsExhausted(data: Data? = null) {
         Log.w("Fernando-tag_${DEFAULT_TAG}", "All retry attempts exhausted for $key")
     }
 
@@ -70,7 +80,14 @@ abstract class BaseWorker(
             when (val result = executeWork()) {
                 is WorkerResult.Success -> {
                     Log.i("Fernando-tag_${DEFAULT_TAG}", "Work completed successfully for $key")
-                    nextWorker(result.data)
+
+                    onBeforeNextWorker()
+
+                    when (result.data) {
+                        null -> nextWorker()
+                        else -> nextWorker(result.data)
+                    }
+
                     Result.success(result.data ?: workDataOf())
                 }
                 is WorkerResult.Retry -> {
@@ -94,7 +111,7 @@ abstract class BaseWorker(
         }
     }
 
-    private fun applyRetryHandling(reason: RetryReason? = null) {
+    private suspend fun applyRetryHandling(reason: RetryReason? = null) {
         val lastReason = inputData.getString("${key}_last_reason")
         val currentReason = reason?.javaClass?.simpleName
 
@@ -127,7 +144,7 @@ abstract class BaseWorker(
                     .build()
 
                 workManager
-                    .beginUniqueWork(key, APPEND, retryRequest)
+                    .beginUniqueWork(key, ExistingWorkPolicy.APPEND_OR_REPLACE, retryRequest)
                     .enqueue()
             }
         }

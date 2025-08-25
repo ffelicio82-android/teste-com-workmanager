@@ -9,19 +9,18 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.models.AppModel
-import br.com.nukes.testeworkmanager.domain.usecases.DeleteByPackageNameUseCase
 import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
 import br.com.nukes.testeworkmanager.utils.Constants.DATA
 import br.com.nukes.testeworkmanager.workers.WorkerResult.Success
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import java.util.concurrent.TimeUnit
 
 class InstallAppWorker(
     context: Context,
-    params: WorkerParameters,
-    private val deleteByPackageNameUseCase: DeleteByPackageNameUseCase
+    params: WorkerParameters
 ) : BaseWorker(context, params), KoinComponent {
 
     private val workManager: WorkManager by inject()
@@ -39,29 +38,24 @@ class InstallAppWorker(
     override suspend fun executeWork(): WorkerResult {
         Log.i("Fernando-tag_$TAG", "Executing install app work ${appModel.packageName} in batch $batchId")
 
+        delay(TimeUnit.MICROSECONDS.toSeconds(3L))
+
         // install app
         return Success(workDataOf(DATA to Json.encodeToString(appModel), BATCH_ID to batchId)).also {
             Log.i("Fernando-tag_$TAG", "Successfully installed ${appModel.packageName} in batch $batchId")
         }
     }
 
-    override fun nextWorker(data: Data?) {
+    override suspend fun nextWorker(data: Data) {
         Log.i("Fernando-tag_${TAG}}", "Executing install nextWorker ${appModel.packageName} in batch $batchId")
-
-        runBlocking { deleteByPackageNameUseCase(appModel.packageName) }.getOrElse {
-            Log.e("Fernando-tag_${TAG}}", "Failed to delete ${appModel.packageName} from database", it)
-        }
         workManager.enqueue(FinalizationProcessAppsWorker.configureRequest(batchId, data, pkgSafe))
     }
 
-    override fun onAttemptsExhausted(data: Data?) {
+    override suspend fun onAttemptsExhausted(data: Data?) {
         Log.i("Fernando-tag_${TAG}}", "onAttemptsExhausted ${appModel.packageName} in batch $batchId")
         val json = Json.encodeToString(appModel)
         val input = workDataOf(DATA to json, BATCH_ID to batchId)
 
-        runBlocking { deleteByPackageNameUseCase(appModel.packageName) }.getOrElse {
-            Log.e("Fernando-tag_${TAG}}", "Failed to delete ${appModel.packageName} from database", it)
-        }
         workManager.enqueue(FinalizationProcessAppsWorker.configureRequest(batchId, input, pkgSafe))
     }
 

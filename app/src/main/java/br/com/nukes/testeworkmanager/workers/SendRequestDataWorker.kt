@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ExistingWorkPolicy.REPLACE
+import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkContinuation
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -51,9 +53,9 @@ class SendRequestDataWorker(
     override fun getIntervalRetry(): Long = configurations.intervalAttempts
 
     override suspend fun executeWork(): WorkerResult {
-        Log.i(TAG, "Executing work ${System.currentTimeMillis()}")
+        Log.i("Fernando-tag_${TAG}", "Executing work $TAG in ${System.currentTimeMillis()}")
 
-        return syncDataUseCase.invoke().fold(
+        return syncDataUseCase().fold(
             onSuccess = { Success() },
             onFailure = { error ->
                 when (error) {
@@ -68,9 +70,11 @@ class SendRequestDataWorker(
         )
     }
 
-    override fun nextWorker(data: Data?) {
-        val apps = runBlocking { getAllUseCase() }.getOrElse { emptyList() }
+    override suspend fun nextWorker() {
+        val apps = getAllUseCase().getOrElse { emptyList() }
         val batchId = System.currentTimeMillis().toString()
+
+        Log.i("Fernando-tag_${TAG}", "Executing nextWorker in $TAG with ${apps.size} apps for batch $batchId")
 
         if (apps.isEmpty()) {
             workManager.enqueueUniqueWork(
@@ -82,7 +86,6 @@ class SendRequestDataWorker(
         }
 
         val regularApps = apps.filterNot { it.packageName.trim().equals("build", true) }
-
         val perAppContinuations = mutableListOf<WorkContinuation>()
 
         regularApps.forEach { app ->
@@ -90,28 +93,37 @@ class SendRequestDataWorker(
             val input = workDataOf(DATA to json, BATCH_ID to batchId)
             val pkgSafe = app.packageName.trim().replace(".", "_")
 
-            val request = when (app.action.uppercase()) {
+            val workerRequest = when (app.action.uppercase()) {
                 INSTALL_FLAG -> DownloadWorker.configureRequest(batchId, input, pkgSafe)
                 else -> UninstallAppWorker.configureRequest(batchId, input, pkgSafe)
             }
 
             val workContinuation = workManager.beginUniqueWork(
                 "process_${pkgSafe}_$batchId",
-                ExistingWorkPolicy.REPLACE,
-                request
+                REPLACE,
+                workerRequest
             )
             perAppContinuations += workContinuation
         }
 
         WorkContinuation.combine(perAppContinuations).enqueue()
+
+        Log.i("Fernando-tag_${TAG}", "Executing nextWorker in $TAG with ${regularApps.size} apps for batch $batchId")
     }
 
-    override fun onAttemptsExhausted(data: Data?) {
-        super.onAttemptsExhausted(data)
+    override suspend fun onAttemptsExhausted(data: Data?) {
+        Log.i("Fernando-tag_${TAG}", "Attempts exhausted for work $key")
     }
 
-    companion object Companion {
+    companion object {
         const val TAG = "send_request_data_worker"
         const val INSTALL_FLAG = "I"
+
+        fun configureRequest(): OneTimeWorkRequest  {
+            return OneTimeWorkRequest.Builder(SendRequestDataWorker::class.java)
+                .addTag(TAG)
+                .addTag(DEFAULT_TAG)
+                .build()
+        }
     }
 }

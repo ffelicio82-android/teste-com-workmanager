@@ -2,7 +2,6 @@ package br.com.nukes.testeworkmanager.workers
 
 import android.content.Context
 import android.util.Log
-import androidx.work.Data
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -28,12 +27,8 @@ class Worker1(
         }
     }
 
-    override fun nextWorker(data: Data?) {
-        val request = OneTimeWorkRequest.Builder(Worker2::class.java)
-            .addTag(Worker2.TAG)
-            .addTag(DEFAULT_TAG)
-            .build()
-        workManager.enqueue(request)
+    override suspend fun nextWorker() {
+        workManager.enqueue(Worker2.configureRequest())
     }
 
     override fun finishAllExecutions(callInRetry: Boolean) {
@@ -48,5 +43,12 @@ class Worker1(
 
     companion object Companion {
         const val TAG = "worker_1"
+
+        fun configureRequest(): OneTimeWorkRequest  {
+            return OneTimeWorkRequest.Builder(Worker1::class.java)
+                .addTag(TAG)
+                .addTag(DEFAULT_TAG)
+                .build()
+        }
     }
 }
