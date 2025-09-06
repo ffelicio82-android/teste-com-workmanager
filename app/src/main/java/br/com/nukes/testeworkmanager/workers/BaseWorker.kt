@@ -31,6 +31,7 @@ sealed class RetryReason(val retryLimit: Int, val intervalRetry: Long) {
     object IoTransient : RetryReason(retryLimit = 3, intervalRetry = 20)
     object Timeout : RetryReason(retryLimit = 3, intervalRetry = 20)
     object Database : RetryReason(retryLimit = 2, intervalRetry = 5)
+    object NoUsagePermission : RetryReason(retryLimit = 3, intervalRetry = 10)
 }
 
 abstract class BaseWorker(
@@ -54,12 +55,7 @@ abstract class BaseWorker(
         /* override */
     }
 
-    protected open suspend fun nextWorker(data: Data) {
-        /* override */
-    }
-
-    @Suppress("RedundantSuspendModifier")
-    protected open suspend fun nextWorker() {
+    protected open suspend fun nextWorker(data: Data?) {
         /* override */
     }
 
@@ -83,10 +79,8 @@ abstract class BaseWorker(
 
                     onBeforeNextWorker()
 
-                    when (result.data) {
-                        null -> nextWorker()
-                        else -> nextWorker(result.data)
-                    }
+                    Log.i("Fernando-tag_${DEFAULT_TAG}", "data for ${result.data?.getString(DATA)}")
+                    nextWorker(result.data)
 
                     Result.success(result.data ?: workDataOf())
                 }
@@ -118,7 +112,7 @@ abstract class BaseWorker(
         val actualRetry = if (currentReason != lastReason) 1
         else inputData.getInt("${key}_${ACTUAL_RETRY_KEY}", ZERO.toInt()) + ONE.toInt()
 
-        val data = inputData.getString("data") ?: "No data provided"
+        val data = inputData.getString(DATA) ?: "No data provided"
         val batchId = inputData.getString(BATCH_ID) ?: "No batch ID provided"
         val retryLimit = reason?.retryLimit ?: getRetryLimit()
         val intervalRetry = reason?.intervalRetry ?: getIntervalRetry()

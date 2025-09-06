@@ -2,16 +2,23 @@ package br.com.nukes.testeworkmanager.workers
 
 import android.content.Context
 import android.util.Log
+import androidx.work.Data
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
+import br.com.nukes.testeworkmanager.domain.usecases.GetInstalledAppsUseCase
+import br.com.nukes.testeworkmanager.utils.Constants.DATA
+import br.com.nukes.testeworkmanager.workers.WorkerResult.Retry
 import br.com.nukes.testeworkmanager.workers.WorkerResult.Success
+import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
-class Worker1(
+class FetchInstalledAppsWorker(
     context: Context,
     params: WorkerParameters,
+    private val getInstalledAppsUseCase: GetInstalledAppsUseCase
 ) : BaseWorker(context, params), KoinComponent {
 
     private val workManager: WorkManager by inject()
@@ -20,15 +27,20 @@ class Worker1(
 
     override suspend fun executeWork(): WorkerResult {
         return try {
-            Log.i(TAG, "Executing work ${System.currentTimeMillis()}")
-            Success()
+            getInstalledAppsUseCase().fold(
+                onSuccess = { Success(workDataOf(DATA to Json.encodeToString(it))) },
+                onFailure = { error ->
+                    Log.e(TAG, "Error fetching installed apps", error)
+                    Retry()
+                }
+            )
         } catch (e: Exception) {
             throw e
         }
     }
 
-    override suspend fun nextWorker() {
-        workManager.enqueue(Worker2.configureRequest())
+    override suspend fun nextWorker(data: Data?) {
+        workManager.enqueue(FetchAppUsageReportWorker.configureRequest())
     }
 
     override fun finishAllExecutions(callInRetry: Boolean) {
@@ -42,10 +54,10 @@ class Worker1(
     }
 
     companion object Companion {
-        const val TAG = "worker_1"
+        const val TAG = "fetch_installed_apps_worker"
 
         fun configureRequest(): OneTimeWorkRequest  {
-            return OneTimeWorkRequest.Builder(Worker1::class.java)
+            return OneTimeWorkRequest.Builder(FetchInstalledAppsWorker::class.java)
                 .addTag(TAG)
                 .addTag(DEFAULT_TAG)
                 .build()

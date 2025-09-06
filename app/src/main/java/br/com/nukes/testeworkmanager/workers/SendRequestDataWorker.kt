@@ -70,7 +70,7 @@ class SendRequestDataWorker(
         )
     }
 
-    override suspend fun nextWorker() {
+    override suspend fun nextWorker(data: Data?) {
         val apps = getAllUseCase().getOrElse { emptyList() }
         val batchId = System.currentTimeMillis().toString()
 

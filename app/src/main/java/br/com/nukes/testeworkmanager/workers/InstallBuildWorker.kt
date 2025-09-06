@@ -49,7 +49,7 @@ class InstallBuildWorker(
         )
     }
 
-    override suspend fun nextWorker() {
+    override suspend fun nextWorker(data: Data?) {
         workManager.enqueue(SendNotificationWorker.configureRequest(batchId))
     }
 

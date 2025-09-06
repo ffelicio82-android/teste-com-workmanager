@@ -4,10 +4,12 @@ import br.com.nukes.testeworkmanager.data.repository.AppRepositoryImpl
 import br.com.nukes.testeworkmanager.data.repository.ConfigurationsRepositoryImpl
 import br.com.nukes.testeworkmanager.data.repository.DownloadRepositoryImpl
 import br.com.nukes.testeworkmanager.data.repository.SyncRepositoryImpl
+import br.com.nukes.testeworkmanager.data.repository.SystemRepositoryImpl
 import br.com.nukes.testeworkmanager.domain.repository.AppRepository
 import br.com.nukes.testeworkmanager.domain.repository.ConfigurationsRepository
 import br.com.nukes.testeworkmanager.domain.repository.DownloadRepository
 import br.com.nukes.testeworkmanager.domain.repository.SyncRepository
+import br.com.nukes.testeworkmanager.domain.repository.SystemRepository
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
@@ -31,4 +33,12 @@ val repositoryModule = module {
     }
 
     single<ConfigurationsRepository> { ConfigurationsRepositoryImpl(get()) }
+
+    single<SystemRepository> {
+        SystemRepositoryImpl(
+            get(),
+            get(),
+            get(named("Default"))
+        )
+    }
 }

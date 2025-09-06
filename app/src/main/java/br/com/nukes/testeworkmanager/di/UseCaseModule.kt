@@ -6,6 +6,8 @@ import br.com.nukes.testeworkmanager.domain.usecases.FetchByPackageNameUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.FetchConfigurationsUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.GetAllAppsUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.GetAllUseCase
+import br.com.nukes.testeworkmanager.domain.usecases.GetAppUsageReportUseCase
+import br.com.nukes.testeworkmanager.domain.usecases.GetInstalledAppsUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.SyncDataUseCase
 import org.koin.dsl.module
 
@@ -17,4 +19,6 @@ val useCaseModule = module {
     factory { FetchByPackageNameUseCase(get()) }
     factory { DeleteByPackageNameUseCase(get()) }
     factory { DownloadUseCase(get()) }
+    factory { GetInstalledAppsUseCase(get()) }
+    factory { GetAppUsageReportUseCase(get()) }
 }

@@ -46,7 +46,7 @@ class InstallAppWorker(
         }
     }
 
-    override suspend fun nextWorker(data: Data) {
+    override suspend fun nextWorker(data: Data?) {
         Log.i("Fernando-tag_${TAG}}", "Executing install nextWorker ${appModel.packageName} in batch $batchId")
         workManager.enqueue(FinalizationProcessAppsWorker.configureRequest(batchId, data, pkgSafe))
     }

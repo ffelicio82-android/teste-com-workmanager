@@ -86,7 +86,7 @@ class DownloadWorker(
         }
     }
 
-    override suspend fun nextWorker() {
+    override suspend fun nextWorker(data: Data?) {
         val json = Json.encodeToString(appModel)
         val input = workDataOf(DATA to json, BATCH_ID to batchId)
 

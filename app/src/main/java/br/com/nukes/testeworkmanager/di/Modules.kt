@@ -4,6 +4,7 @@ val modules = listOf(
     databaseModule,
     preferencesModule,
     networkModule,
+    systemModule,
     dispatcherModule,
     repositoryModule,
     useCaseModule,

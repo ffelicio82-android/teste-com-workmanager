@@ -2,6 +2,7 @@ package br.com.nukes.testeworkmanager.workers
 
 import android.content.Context
 import android.util.Log
+import androidx.work.Data
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -39,8 +40,8 @@ class InitialWorker(
         }
     }
 
-    override suspend fun nextWorker() {
-        workManager.enqueue(Worker1.configureRequest())
+    override suspend fun nextWorker(data: Data?) {
+        workManager.enqueue(FetchInstalledAppsWorker.configureRequest())
     }
 
     companion object {

@@ -54,7 +54,7 @@ class FinalizationProcessAppsWorker(
         } ?: WorkerResult.Success()
     }
 
-    override suspend fun nextWorker() {
+    override suspend fun nextWorker(data: Data?) {
         val apps = getAllAppsUseCase().getOrElse { emptyList() }
 
         if (apps.isNotEmpty()) {
