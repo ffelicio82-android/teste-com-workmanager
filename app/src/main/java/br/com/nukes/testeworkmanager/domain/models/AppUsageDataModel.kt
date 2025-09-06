@@ -7,9 +7,9 @@ import kotlinx.serialization.Serializable
 @OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class AppUsageDataModel(
-    val packageName: String,
+    @EncodeDefault val packageName: String,
+    @EncodeDefault val appName: String,
     val hourlyData: List<HourlyUsageModel>,
-    @EncodeDefault val totalForegroundTime: Long = 0L,
-    @EncodeDefault val totalBackgroundTime: Long = 0L,
-    @EncodeDefault val totalLaunches: Int = 0
+    @EncodeDefault val totalForegroundTime: Double = 0.toDouble(),
+    @EncodeDefault val totalBackgroundTime: Double = 0.toDouble()
 )

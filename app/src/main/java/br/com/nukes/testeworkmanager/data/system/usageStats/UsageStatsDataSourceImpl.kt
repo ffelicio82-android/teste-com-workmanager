@@ -4,9 +4,13 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import br.com.nukes.testeworkmanager.data.system.entities.AppUsageData
 import br.com.nukes.testeworkmanager.data.system.entities.HourlyUsageData
 import br.com.nukes.testeworkmanager.data.system.entities.SystemUsageData
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Calendar
 
 class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSource {
@@ -20,6 +24,7 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
         val calendar = Calendar.getInstance()
 
         val startTime = calendar.apply {
+            add(Calendar.DAY_OF_YEAR, -1)
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -33,7 +38,26 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
             set(Calendar.MILLISECOND, 599)
         }.timeInMillis
 
+        Log.d("UsageStatsDataSourceImpl", "getTime: ${convertMillisToDate(startTime)} - ${convertMillisToDate(endTime)}")
+
         return Pair(startTime, endTime)
+    }
+
+    fun convertMillisToDate(milliseconds: Long): String {
+        // 1. Create an Instant from the milliseconds
+        val instant = Instant.ofEpochMilli(milliseconds)
+
+        // 2. Define the desired time zone (e.g., system default or a specific one)
+        val zoneId = ZoneId.of("America/Sao_Paulo") // Or ZoneId.systemDefault()
+
+        // 3. Convert the Instant to a ZonedDateTime in the specified time zone
+        val zonedDateTime = instant.atZone(zoneId)
+
+        // 4. Define the desired date and time format
+        val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")
+
+        // 5. Format the ZonedDateTime into a string
+        return zonedDateTime.format(formatter)
     }
 
     override fun getUsageReport(installedApps: List<String>): SystemUsageData {
@@ -57,7 +81,7 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
         // 3. Converte para AppUsageInfo
         val appUsageList = appUsageMap.values
             .map { it.build() }
-            .filter { it.totalForegroundTime > 0 || it.totalLaunches > 0 }
+            .filter { it.totalForegroundTime > 0 }
             .sortedByDescending { it.totalForegroundTime }
 
         // 4. Cria dados globais do sistema
@@ -87,14 +111,13 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
                 appUsageMap[packageName] = AppUsageBuilder(packageName, getAppName(packageName))
             }
 
-            val builder = appUsageMap[packageName]!!
+            val builder = appUsageMap[packageName] ?: continue
 
             when (event.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED,
                 UsageEvents.Event.MOVE_TO_FOREGROUND -> {
                     // App entrou em foreground
                     activeApps[packageName] = event.timeStamp
-                    builder.addLaunch(hour)
                 }
 
                 UsageEvents.Event.ACTIVITY_PAUSED,
@@ -120,7 +143,7 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
     private fun collectBackgroundTime(
         startTime: Long,
         endTime: Long,
-        appUsageMap: MutableMap<String, AppUsageBuilder>,
+        appUsageMap: Map<String, AppUsageBuilder>,
         installedApps: List<String>
     ) {
         val usageStatsList = usageStatsManager.queryUsageStats(
@@ -154,20 +177,18 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
             HourlyUsageData(
                 hour = hour,
                 foregroundTime = 0L,
-                backgroundTime = 0L,
-                launches = 0
+                backgroundTime = 0L
             )
         }.toMutableList()
 
         // Soma dados de todos os apps por hora
         appUsageList.forEach { app ->
-            app.hourlyData.forEachIndexed { index, hourData ->
-                val currentHour = systemHours[index]
-                systemHours[index] = HourlyUsageData(
-                    hour = index,
+            app.hourlyData.forEachIndexed { hour, hourData ->
+                val currentHour = systemHours[hour]
+                systemHours[hour] = HourlyUsageData(
+                    hour = hour,
                     foregroundTime = currentHour.foregroundTime + hourData.foregroundTime,
-                    backgroundTime = currentHour.backgroundTime + hourData.backgroundTime,
-                    launches = currentHour.launches + hourData.launches
+                    backgroundTime = currentHour.backgroundTime + hourData.backgroundTime
                 )
             }
         }
@@ -176,7 +197,6 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
             hourlyUsageData = systemHours,
             totalForegroundTime = systemHours.sumOf { it.foregroundTime },
             totalBackgroundTime = systemHours.sumOf { it.backgroundTime },
-            totalLaunches = systemHours.sumOf { it.launches },
             apps = appUsageList.toMutableList()
         )
     }
@@ -187,13 +207,6 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
         val appName: String
     ) {
         private val hourlyData = Array(24) { HourlyUsageData(it) }
-
-        fun addLaunch(hour: Int) {
-            if (hour in 0..23) {
-                val current = hourlyData[hour]
-                hourlyData[hour] = current.copy(launches = current.launches + 1)
-            }
-        }
 
         fun addForegroundTime(hour: Int, time: Long) {
             if (hour in 0..23 && time > 0) {
@@ -222,16 +235,16 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
                 appName = appName,
                 hourlyData = cleanHourlyData,
                 totalForegroundTime = cleanHourlyData.sumOf { it.foregroundTime },
-                totalBackgroundTime = cleanHourlyData.sumOf { it.backgroundTime },
-                totalLaunches = cleanHourlyData.sumOf { it.launches }
+                totalBackgroundTime = cleanHourlyData.sumOf { it.backgroundTime }
             )
         }
     }
 
     private fun getHourFromTimestamp(timestamp: Long): Int {
-        val calendar = Calendar.getInstance()
-        calendar.timeInMillis = timestamp
-        return calendar.get(Calendar.HOUR_OF_DAY)
+        val instant = Instant.ofEpochMilli(timestamp)
+        val zoneId = ZoneId.of("America/Sao_Paulo")
+        val zonedDateTime = instant.atZone(zoneId)
+        return zonedDateTime.hour
     }
 
     private fun getAppName(packageName: String): String {
@@ -239,25 +252,8 @@ class UsageStatsDataSourceImpl(private val context: Context): UsageStatsDataSour
             val appInfo = packageManager.getApplicationInfo(packageName, 0)
             packageManager.getApplicationLabel(appInfo).toString()
         } catch (e: PackageManager.NameNotFoundException) {
+            Log.e("UsageStatsDataSourceImpl", "App não encontrado: $packageName", e)
             packageName
         }
     }
-
-
 }
-
-fun Long.toMinutes(
-    round: Rounding = Rounding.Floor,
-    minOneIfPositive: Boolean = false
-): Long {
-    if (this <= 0) return 0
-    val m = when (round) {
-        Rounding.Floor   -> (this / 60_000L).toInt()
-        Rounding.Ceil    -> ((this + 59_999L) / 60_000L).toInt()
-        Rounding.Nearest -> ((this + 30_000L) / 60_000L).toInt()
-    }
-    if (minOneIfPositive && m == 0) return 1
-    return m.toLong()
-}
-
-enum class Rounding { Floor, Ceil, Nearest }

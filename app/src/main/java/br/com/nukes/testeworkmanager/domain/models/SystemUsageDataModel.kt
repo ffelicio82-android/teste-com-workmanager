@@ -8,8 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SystemUsageDataModel(
     val hourlyUsageData: List<HourlyUsageModel>,
-    @EncodeDefault val totalForegroundTime : Long = 0L,
-    @EncodeDefault val totalBackgroundTime: Long = 0L,
-    @EncodeDefault val totalLaunches: Int = 0,
+    @EncodeDefault val totalForegroundTime : Double = 0.0,
+    @EncodeDefault val totalBackgroundTime: Double = 0.0,
     val apps: MutableList<AppUsageDataModel>
 )

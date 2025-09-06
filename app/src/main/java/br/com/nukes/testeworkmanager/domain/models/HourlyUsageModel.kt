@@ -8,7 +8,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class HourlyUsageModel(
     @EncodeDefault var hour: Int = 0,
-    @EncodeDefault var foregroundTime: Long = 0,
-    @EncodeDefault var backgroundTime: Long = 0,
-    @EncodeDefault var launches: Int = 0
+    @EncodeDefault var foregroundTime: Double = 0.0,
+    @EncodeDefault var backgroundTime: Double = 0.0
 )
