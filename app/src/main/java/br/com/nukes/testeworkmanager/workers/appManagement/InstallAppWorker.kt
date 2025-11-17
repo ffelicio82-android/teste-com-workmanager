@@ -1,4 +1,4 @@
-package br.com.nukes.testeworkmanager.workers
+package br.com.nukes.testeworkmanager.workers.appManagement
 
 import android.content.Context
 import android.util.Log
@@ -9,9 +9,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.models.AppModel
-import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
-import br.com.nukes.testeworkmanager.utils.Constants.DATA
-import br.com.nukes.testeworkmanager.workers.WorkerResult.Success
+import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.workers.BaseWorker
+import br.com.nukes.testeworkmanager.workers.WorkerResult
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
@@ -26,11 +26,11 @@ class InstallAppWorker(
     private val workManager: WorkManager by inject()
 
     private val appModel: AppModel by lazy {
-        val json = inputData.getString(DATA) ?: throw IllegalArgumentException("AppModel is required")
+        val json = inputData.getString(Constants.DATA) ?: throw IllegalArgumentException("AppModel is required")
         Json.decodeFromString<AppModel>(json)
     }
 
-    private val batchId by lazy { inputData.getString(BATCH_ID) ?: "no_batch" }
+    private val batchId by lazy { inputData.getString(Constants.BATCH_ID) ?: "no_batch" }
     private val pkgSafe by lazy { appModel.packageName.replace(".", "_") }
 
     override val key: String = "${TAG}_${batchId}_$pkgSafe"
@@ -41,7 +41,12 @@ class InstallAppWorker(
         delay(TimeUnit.MICROSECONDS.toSeconds(3L))
 
         // install app
-        return Success(workDataOf(DATA to Json.encodeToString(appModel), BATCH_ID to batchId)).also {
+        return WorkerResult.Success(
+            workDataOf(
+                Constants.DATA to Json.encodeToString(appModel),
+                Constants.BATCH_ID to batchId
+            )
+        ).also {
             Log.i("Fernando-tag_$TAG", "Successfully installed ${appModel.packageName} in batch $batchId")
         }
     }
@@ -54,7 +59,7 @@ class InstallAppWorker(
     override suspend fun onAttemptsExhausted(data: Data?) {
         Log.i("Fernando-tag_${TAG}}", "onAttemptsExhausted ${appModel.packageName} in batch $batchId")
         val json = Json.encodeToString(appModel)
-        val input = workDataOf(DATA to json, BATCH_ID to batchId)
+        val input = workDataOf(Constants.DATA to json, Constants.BATCH_ID to batchId)
 
         workManager.enqueue(FinalizationProcessAppsWorker.configureRequest(batchId, input, pkgSafe))
     }

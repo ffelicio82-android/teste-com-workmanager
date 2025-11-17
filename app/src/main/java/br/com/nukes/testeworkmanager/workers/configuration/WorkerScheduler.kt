@@ -7,9 +7,9 @@ import androidx.work.WorkManager
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.util.concurrent.TimeUnit.SECONDS
+import kotlin.time.Duration.Companion.seconds
 
 object WorkerScheduler: KoinComponent {
-
     private val workManager: WorkManager by inject()
 
     fun scheduleWorkerOrchestrator(seconds: Long = 0L) {
@@ -20,7 +20,7 @@ object WorkerScheduler: KoinComponent {
         }
 
         val request = OneTimeWorkRequestBuilder<WorkerOrchestrator>()
-            .setInitialDelay(seconds, SECONDS)
+            .setInitialDelay(seconds.seconds.inWholeSeconds, SECONDS)
             .addTag(WorkerOrchestrator.TAG)
             .build()
 

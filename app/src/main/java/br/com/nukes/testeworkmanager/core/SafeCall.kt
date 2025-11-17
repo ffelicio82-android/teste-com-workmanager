@@ -1,7 +1,6 @@
 package br.com.nukes.testeworkmanager.core
 
 import android.database.SQLException
-import android.database.sqlite.SQLiteException
 import br.com.nukes.testeworkmanager.core.NetworkException.BadGatewayException
 import br.com.nukes.testeworkmanager.core.NetworkException.BadRequestException
 import br.com.nukes.testeworkmanager.core.NetworkException.ConflictException
@@ -61,6 +60,6 @@ fun mapToDomain(t: Throwable): Throwable = when (t) {
     is IOException -> t
     is JsonDataException -> ParseException(t.message, t)
     is PreferencesException -> t
-    is SQLException, is SQLiteException -> DatabaseException(t.message, t)
+    is SQLException -> DatabaseException(t.message, t)
     else -> UnknownException(t.message, t)
 }

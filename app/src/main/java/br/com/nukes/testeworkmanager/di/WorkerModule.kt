@@ -1,16 +1,16 @@
 package br.com.nukes.testeworkmanager.di
 
 import androidx.work.WorkManager
-import br.com.nukes.testeworkmanager.workers.DownloadWorker
-import br.com.nukes.testeworkmanager.workers.FinalizationProcessAppsWorker
-import br.com.nukes.testeworkmanager.workers.InitialWorker
-import br.com.nukes.testeworkmanager.workers.InstallAppWorker
-import br.com.nukes.testeworkmanager.workers.InstallBuildWorker
-import br.com.nukes.testeworkmanager.workers.SendNotificationWorker
-import br.com.nukes.testeworkmanager.workers.UninstallAppWorker
-import br.com.nukes.testeworkmanager.workers.SendRequestDataWorker
-import br.com.nukes.testeworkmanager.workers.FetchInstalledAppsWorker
-import br.com.nukes.testeworkmanager.workers.FetchAppUsageReportWorker
+import br.com.nukes.testeworkmanager.workers.dataflow.DownloadWorker
+import br.com.nukes.testeworkmanager.workers.appManagement.FinalizationProcessAppsWorker
+import br.com.nukes.testeworkmanager.workers.dataflow.InitialWorker
+import br.com.nukes.testeworkmanager.workers.appManagement.InstallAppWorker
+import br.com.nukes.testeworkmanager.workers.system.InstallBuildWorker
+import br.com.nukes.testeworkmanager.workers.dataflow.SendNotificationWorker
+import br.com.nukes.testeworkmanager.workers.appManagement.UninstallAppWorker
+import br.com.nukes.testeworkmanager.workers.dataflow.SendRequestDataWorker
+import br.com.nukes.testeworkmanager.workers.appManagement.FetchInstalledAppsWorker
+import br.com.nukes.testeworkmanager.workers.appManagement.FetchAppUsageReportWorker
 import br.com.nukes.testeworkmanager.workers.configuration.WorkerOrchestrator
 import org.koin.androidx.workmanager.dsl.worker
 import org.koin.dsl.module

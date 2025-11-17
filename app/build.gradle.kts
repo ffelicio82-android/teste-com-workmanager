@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "br.com.nukes.testeworkmanager"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "br.com.nukes.testeworkmanager"

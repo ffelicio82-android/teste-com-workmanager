@@ -1,4 +1,4 @@
-package br.com.nukes.testeworkmanager.workers
+package br.com.nukes.testeworkmanager.workers.system
 
 import android.content.Context
 import android.util.Log
@@ -9,7 +9,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import br.com.nukes.testeworkmanager.domain.models.AppModel
 import br.com.nukes.testeworkmanager.domain.usecases.DeleteByPackageNameUseCase
-import br.com.nukes.testeworkmanager.utils.Constants.DATA
+import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.workers.BaseWorker
+import br.com.nukes.testeworkmanager.workers.WorkerResult
+import br.com.nukes.testeworkmanager.workers.dataflow.SendNotificationWorker
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -23,7 +26,7 @@ class InstallBuildWorker(
     private val workManager: WorkManager by inject()
 
     private val appModel: AppModel by lazy {
-        val json = inputData.getString(DATA) ?: throw IllegalArgumentException("AppModel is required")
+        val json = inputData.getString(Constants.DATA) ?: throw IllegalArgumentException("AppModel is required")
         Json.decodeFromString<AppModel>(json)
     }
 

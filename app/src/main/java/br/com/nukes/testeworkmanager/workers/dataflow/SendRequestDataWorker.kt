@@ -1,29 +1,25 @@
-package br.com.nukes.testeworkmanager.workers
+package br.com.nukes.testeworkmanager.workers.dataflow
 
 import android.content.Context
 import android.util.Log
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
-import androidx.work.ExistingWorkPolicy.REPLACE
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkContinuation
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import br.com.nukes.testeworkmanager.core.NetworkException.GatewayTimeoutException
-import br.com.nukes.testeworkmanager.core.NetworkException.NotFoundException
-import br.com.nukes.testeworkmanager.core.NetworkException.TimeoutException
-import br.com.nukes.testeworkmanager.core.NetworkException.UnauthorizedException
+import br.com.nukes.testeworkmanager.core.NetworkException
 import br.com.nukes.testeworkmanager.core.ParseException
 import br.com.nukes.testeworkmanager.domain.models.ConfigurationsModel
 import br.com.nukes.testeworkmanager.domain.usecases.FetchConfigurationsUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.GetAllUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.SyncDataUseCase
-import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
-import br.com.nukes.testeworkmanager.utils.Constants.DATA
-import br.com.nukes.testeworkmanager.workers.RetryReason.Timeout
-import br.com.nukes.testeworkmanager.workers.RetryReason.Unauthorized
-import br.com.nukes.testeworkmanager.workers.WorkerResult.*
+import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.workers.BaseWorker
+import br.com.nukes.testeworkmanager.workers.RetryReason
+import br.com.nukes.testeworkmanager.workers.WorkerResult
+import br.com.nukes.testeworkmanager.workers.appManagement.UninstallAppWorker
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
@@ -43,7 +39,7 @@ class SendRequestDataWorker(
 
     private val configurations: ConfigurationsModel by lazy {
         runBlocking {
-            fetchConfigurationsUseCase.invoke().getOrElse {
+            fetchConfigurationsUseCase().getOrElse {
                 ConfigurationsModel(retryAttempts = 3, intervalAttempts = 60, syncFrequency = 60)
             }
         }
@@ -56,15 +52,15 @@ class SendRequestDataWorker(
         Log.i("Fernando-tag_${TAG}", "Executing work $TAG in ${System.currentTimeMillis()}")
 
         return syncDataUseCase().fold(
-            onSuccess = { Success() },
+            onSuccess = { WorkerResult.Success() },
             onFailure = { error ->
                 when (error) {
-                    is UnauthorizedException -> Retry(Unauthorized)
-                    is TimeoutException,
-                    is GatewayTimeoutException -> Retry(Timeout)
+                    is NetworkException.UnauthorizedException -> WorkerResult.Retry(RetryReason.Unauthorized)
+                    is NetworkException.TimeoutException,
+                    is NetworkException.GatewayTimeoutException -> WorkerResult.Retry(RetryReason.Timeout)
                     is ParseException,
-                    is NotFoundException -> Failure()
-                    else -> Retry()
+                    is NetworkException.NotFoundException -> WorkerResult.Failure()
+                    else -> WorkerResult.Retry()
                 }
             }
         )
@@ -90,7 +86,7 @@ class SendRequestDataWorker(
 
         regularApps.forEach { app ->
             val json = Json.encodeToString(app)
-            val input = workDataOf(DATA to json, BATCH_ID to batchId)
+            val input = workDataOf(Constants.DATA to json, Constants.BATCH_ID to batchId)
             val pkgSafe = app.packageName.trim().replace(".", "_")
 
             val workerRequest = when (app.action.uppercase()) {
@@ -100,7 +96,7 @@ class SendRequestDataWorker(
 
             val workContinuation = workManager.beginUniqueWork(
                 "process_${pkgSafe}_$batchId",
-                REPLACE,
+                ExistingWorkPolicy.REPLACE,
                 workerRequest
             )
             perAppContinuations += workContinuation
@@ -119,7 +115,7 @@ class SendRequestDataWorker(
         const val TAG = "send_request_data_worker"
         const val INSTALL_FLAG = "I"
 
-        fun configureRequest(): OneTimeWorkRequest  {
+        fun configureRequest(): OneTimeWorkRequest {
             return OneTimeWorkRequest.Builder(SendRequestDataWorker::class.java)
                 .addTag(TAG)
                 .addTag(DEFAULT_TAG)

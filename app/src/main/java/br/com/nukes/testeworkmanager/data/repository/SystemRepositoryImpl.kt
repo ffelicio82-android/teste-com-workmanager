@@ -20,7 +20,7 @@ class SystemRepositoryImpl(
 
     override suspend fun getUsageReport(): Result<SystemUsageDataModel> = safeIo(dispatcher) {
         val installedApps = packageManagerDataSource.getInstalledApps().filter {
-            it.packageName.contains("br.com.userede.redeflex")
+            it.packageName.contains("br.com.test")
         }.map {
             it.packageName
         }

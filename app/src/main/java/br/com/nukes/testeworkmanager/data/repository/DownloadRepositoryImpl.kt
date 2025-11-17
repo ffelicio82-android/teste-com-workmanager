@@ -27,7 +27,6 @@ class DownloadRepositoryImpl(private val downloadDataSource: DownloadDataSource)
             }
             .onEach { downloadEvent ->
                 if (downloadEvent is DownloadEvent.Completed) {
-                    // Here you can handle the completion event, e.g., log it or update UI
                     println("Download completed: ${downloadEvent.filePath}")
                 }
             }

@@ -1,7 +1,7 @@
 package br.com.nukes.testeworkmanager.workers.configuration
 
 import androidx.work.WorkManager
-import br.com.nukes.testeworkmanager.workers.InitialWorker
+import br.com.nukes.testeworkmanager.workers.dataflow.InitialWorker
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 

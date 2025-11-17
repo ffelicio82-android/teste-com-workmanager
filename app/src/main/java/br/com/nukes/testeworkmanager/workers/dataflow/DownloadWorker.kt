@@ -1,4 +1,4 @@
-package br.com.nukes.testeworkmanager.workers
+package br.com.nukes.testeworkmanager.workers.dataflow
 
 import android.content.Context
 import android.util.Log
@@ -11,9 +11,12 @@ import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.models.AppModel
 import br.com.nukes.testeworkmanager.domain.models.DownloadEvent
 import br.com.nukes.testeworkmanager.domain.usecases.DownloadUseCase
-import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
-import br.com.nukes.testeworkmanager.utils.Constants.DATA
-import br.com.nukes.testeworkmanager.workers.RetryReason.*
+import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.workers.BaseWorker
+import br.com.nukes.testeworkmanager.workers.RetryReason
+import br.com.nukes.testeworkmanager.workers.WorkerResult
+import br.com.nukes.testeworkmanager.workers.appManagement.InstallAppWorker
+import br.com.nukes.testeworkmanager.workers.system.InstallBuildWorker
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
 import kotlinx.serialization.json.Json
@@ -34,11 +37,11 @@ class DownloadWorker(
     private val workManager: WorkManager by inject()
 
     private val appModel: AppModel by lazy {
-        val json = inputData.getString(DATA) ?: throw IllegalArgumentException("AppModel is required")
+        val json = inputData.getString(Constants.DATA) ?: throw IllegalArgumentException("AppModel is required")
         Json.decodeFromString<AppModel>(json)
     }
 
-    private val batchId by lazy { inputData.getString(BATCH_ID) ?: "no_batch" }
+    private val batchId by lazy { inputData.getString(Constants.BATCH_ID) ?: "no_batch" }
     private val pkgSafe by lazy { appModel.packageName.replace(".", "_") }
     override val key: String = "${TAG}_${batchId}_$pkgSafe"
 
@@ -52,7 +55,7 @@ class DownloadWorker(
                         is DownloadEvent.Started -> {
                             setProgress(
                                 workDataOf(
-                                    BATCH_ID to batchId,
+                                    Constants.BATCH_ID to batchId,
                                     PACKAGE_NAME to appModel.packageName,
                                     PROGRESS to 0
                                 )
@@ -62,7 +65,7 @@ class DownloadWorker(
                         is DownloadEvent.Progress -> {
                             setProgress(
                                 workDataOf(
-                                    BATCH_ID to batchId,
+                                    Constants.BATCH_ID to batchId,
                                     PACKAGE_NAME to appModel.packageName,
                                     PROGRESS to downloadEvent.percent
                                 )
@@ -88,9 +91,9 @@ class DownloadWorker(
 
     override suspend fun nextWorker(data: Data?) {
         val json = Json.encodeToString(appModel)
-        val input = workDataOf(DATA to json, BATCH_ID to batchId)
+        val input = workDataOf(Constants.DATA to json, Constants.BATCH_ID to batchId)
 
-        val workerRequest = when (appModel.packageName.lowercase().contains(InstallBuildWorker.BUILD)) {
+        val workerRequest = when (appModel.packageName.lowercase().contains(InstallBuildWorker.Companion.BUILD)) {
             true -> InstallBuildWorker.configureRequest(batchId, input, pkgSafe)
             false -> InstallAppWorker.configureRequest(batchId, input, pkgSafe)
         }
@@ -108,10 +111,10 @@ class DownloadWorker(
 
     private fun mapToWorkerResult(t: Throwable): WorkerResult {
         return when (t) {
-            is SocketTimeoutException -> WorkerResult.Retry(SocketTimeout)
+            is SocketTimeoutException -> WorkerResult.Retry(RetryReason.SocketTimeout)
             is UnknownHostException,
-            is ConnectException -> WorkerResult.Retry(NetworkUnreachable)
-            is IOException -> WorkerResult.Retry(IoTransient)
+            is ConnectException -> WorkerResult.Retry(RetryReason.NetworkUnreachable)
+            is IOException -> WorkerResult.Retry(RetryReason.IoTransient)
             else -> WorkerResult.Failure()
         }
     }

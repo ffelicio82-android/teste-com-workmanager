@@ -1,4 +1,4 @@
-package br.com.nukes.testeworkmanager.workers
+package br.com.nukes.testeworkmanager.workers.appManagement
 
 import android.content.Context
 import android.util.Log
@@ -12,9 +12,12 @@ import br.com.nukes.testeworkmanager.domain.models.AppModel
 import br.com.nukes.testeworkmanager.domain.usecases.DeleteByPackageNameUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.FetchByPackageNameUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.GetAllAppsUseCase
-import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
-import br.com.nukes.testeworkmanager.utils.Constants.DATA
-import br.com.nukes.testeworkmanager.workers.RetryReason.Database
+import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.workers.BaseWorker
+import br.com.nukes.testeworkmanager.workers.dataflow.DownloadWorker
+import br.com.nukes.testeworkmanager.workers.RetryReason
+import br.com.nukes.testeworkmanager.workers.WorkerResult
+import br.com.nukes.testeworkmanager.workers.dataflow.SendNotificationWorker
 import kotlinx.serialization.json.Json
 import org.koin.core.component.inject
 
@@ -29,11 +32,11 @@ class FinalizationProcessAppsWorker(
     private val workManager: WorkManager by inject()
 
     private val appModel: AppModel? by lazy {
-        val json = inputData.getString(DATA) ?: return@lazy null
+        val json = inputData.getString(Constants.DATA) ?: return@lazy null
         Json.decodeFromString<AppModel>(json)
     }
 
-    private val batchId by lazy { inputData.getString(BATCH_ID) ?: "no_batch" }
+    private val batchId by lazy { inputData.getString(Constants.BATCH_ID) ?: "no_batch" }
 
     override val key: String = TAG
 
@@ -48,7 +51,7 @@ class FinalizationProcessAppsWorker(
                 },
                 onFailure = { error ->
                     Log.e("Fernando-tag_${TAG}", "Error deleting package ${app.packageName} in batch $batchId", error)
-                    WorkerResult.Retry(Database)
+                    WorkerResult.Retry(RetryReason.Database)
                 }
             )
         } ?: WorkerResult.Success()
@@ -67,7 +70,7 @@ class FinalizationProcessAppsWorker(
                     null -> SendNotificationWorker.configureRequest(batchId)
                     else -> {
                         val json = Json.encodeToString(build)
-                        val input = workDataOf(DATA to json, BATCH_ID to batchId)
+                        val input = workDataOf(Constants.DATA to json, Constants.BATCH_ID to batchId)
                         DownloadWorker.configureRequest(batchId, input, build.packageName)
                     }
                 }
@@ -83,7 +86,7 @@ class FinalizationProcessAppsWorker(
 
         fun configureRequest(batchId: String, input: Data? = null, pkgSafe: String? = null): OneTimeWorkRequest {
             val request = OneTimeWorkRequestBuilder<FinalizationProcessAppsWorker>()
-                .setInputData(input ?: Data.EMPTY)
+                .setInputData(input ?: Data.Companion.EMPTY)
                 .addTag(TAG)
                 .addTag("batch_$batchId")
                 .addTag(DEFAULT_TAG)

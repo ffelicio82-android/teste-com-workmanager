@@ -1,4 +1,4 @@
-package br.com.nukes.testeworkmanager.workers
+package br.com.nukes.testeworkmanager.workers.appManagement
 
 import android.content.Context
 import android.util.Log
@@ -8,9 +8,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.usecases.GetInstalledAppsUseCase
-import br.com.nukes.testeworkmanager.utils.Constants.DATA
-import br.com.nukes.testeworkmanager.workers.WorkerResult.Retry
-import br.com.nukes.testeworkmanager.workers.WorkerResult.Success
+import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.workers.BaseWorker
+import br.com.nukes.testeworkmanager.workers.WorkerResult
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -28,10 +28,18 @@ class FetchInstalledAppsWorker(
     override suspend fun executeWork(): WorkerResult {
         return try {
             getInstalledAppsUseCase().fold(
-                onSuccess = { Success(workDataOf(DATA to Json.encodeToString(it))) },
+                onSuccess = {
+                    WorkerResult.Success(
+                        workDataOf(
+                            Constants.DATA to Json.encodeToString(
+                                it
+                            )
+                        )
+                    )
+                },
                 onFailure = { error ->
                     Log.e(TAG, "Error fetching installed apps", error)
-                    Retry()
+                    WorkerResult.Retry()
                 }
             )
         } catch (e: Exception) {
@@ -40,7 +48,7 @@ class FetchInstalledAppsWorker(
     }
 
     override suspend fun nextWorker(data: Data?) {
-        workManager.enqueue(FetchAppUsageReportWorker.configureRequest())
+        workManager.enqueue(FetchAppUsageReportWorker.Companion.configureRequest())
     }
 
     override fun finishAllExecutions(callInRetry: Boolean) {
@@ -56,7 +64,7 @@ class FetchInstalledAppsWorker(
     companion object Companion {
         const val TAG = "fetch_installed_apps_worker"
 
-        fun configureRequest(): OneTimeWorkRequest  {
+        fun configureRequest(): OneTimeWorkRequest {
             return OneTimeWorkRequest.Builder(FetchInstalledAppsWorker::class.java)
                 .addTag(TAG)
                 .addTag(DEFAULT_TAG)
