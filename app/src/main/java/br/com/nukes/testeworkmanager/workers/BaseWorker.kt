@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -153,7 +154,7 @@ abstract class BaseWorker(
                     .build()
 
                 workManager
-                    .beginUniqueWork(key, ExistingWorkPolicy.APPEND_OR_REPLACE, retryRequest)
+                    .beginUniqueWork(key, APPEND_OR_REPLACE, retryRequest)
                     .enqueue()
             }
         }

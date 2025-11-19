@@ -48,7 +48,7 @@ class FetchInstalledAppsWorker(
     }
 
     override suspend fun nextWorker(data: Data?) {
-        workManager.enqueue(FetchAppUsageReportWorker.Companion.configureRequest())
+        workManager.enqueue(FetchAppUsageReportWorker.configureRequest())
     }
 
     override fun finishAllExecutions(callInRetry: Boolean) {

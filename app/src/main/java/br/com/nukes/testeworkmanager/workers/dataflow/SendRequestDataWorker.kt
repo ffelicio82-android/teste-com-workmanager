@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
-import androidx.work.WorkContinuation
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -15,13 +14,12 @@ import br.com.nukes.testeworkmanager.domain.models.ConfigurationsModel
 import br.com.nukes.testeworkmanager.domain.usecases.FetchConfigurationsUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.GetAllUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.SyncDataUseCase
-import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.RetryReason
 import br.com.nukes.testeworkmanager.workers.WorkerResult
-import br.com.nukes.testeworkmanager.workers.appManagement.UninstallAppWorker
+import br.com.nukes.testeworkmanager.workers.appManagement.ProcessAppsWorker
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -76,35 +74,18 @@ class SendRequestDataWorker(
             workManager.enqueueUniqueWork(
                 "${SendNotificationWorker.TAG}_$batchId",
                 ExistingWorkPolicy.KEEP,
-                SendNotificationWorker.configureRequest(batchId)
+                SendNotificationWorker.configureRequest(batchId, workDataOf(BATCH_ID to batchId))
             )
             return
         }
 
-        val regularApps = apps.filterNot { it.packageName.trim().equals("build", true) }
-        val perAppContinuations = mutableListOf<WorkContinuation>()
+        workManager.enqueueUniqueWork(
+            "${ProcessAppsWorker.TAG}_$batchId",
+            ExistingWorkPolicy.REPLACE,
+            ProcessAppsWorker.configureRequest(batchId, workDataOf(BATCH_ID to batchId))
+        )
 
-        regularApps.forEach { app ->
-            val json = Json.encodeToString(app)
-            val input = workDataOf(Constants.DATA to json, Constants.BATCH_ID to batchId)
-            val pkgSafe = app.packageName.trim().replace(".", "_")
-
-            val workerRequest = when (app.action.uppercase()) {
-                INSTALL_FLAG -> DownloadWorker.configureRequest(batchId, input, pkgSafe)
-                else -> UninstallAppWorker.configureRequest(batchId, input, pkgSafe)
-            }
-
-            val workContinuation = workManager.beginUniqueWork(
-                "process_${pkgSafe}_$batchId",
-                ExistingWorkPolicy.REPLACE,
-                workerRequest
-            )
-            perAppContinuations += workContinuation
-        }
-
-        WorkContinuation.combine(perAppContinuations).enqueue()
-
-        Log.i("Fernando-tag_${TAG}", "Executing nextWorker in $TAG with ${regularApps.size} apps for batch $batchId")
+        Log.i("Fernando-tag_${TAG}", "Executing nextWorker in $TAG for batch $batchId")
     }
 
     override suspend fun onAttemptsExhausted(data: Data?) {
@@ -113,7 +94,6 @@ class SendRequestDataWorker(
 
     companion object {
         const val TAG = "send_request_data_worker"
-        const val INSTALL_FLAG = "I"
 
         fun configureRequest(): OneTimeWorkRequest {
             return OneTimeWorkRequest.Builder(SendRequestDataWorker::class.java)
