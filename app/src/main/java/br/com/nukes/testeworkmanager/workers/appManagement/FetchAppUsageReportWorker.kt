@@ -9,6 +9,8 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import br.com.nukes.testeworkmanager.domain.usecases.GetAppUsageReportUseCase
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.WorkerResult
 import br.com.nukes.testeworkmanager.workers.dataflow.SendRequestDataWorker
@@ -19,12 +21,15 @@ import org.koin.core.component.inject
 class FetchAppUsageReportWorker(
     private val context: Context,
     params: WorkerParameters,
-    private val getAppUsageReportUseCase: GetAppUsageReportUseCase
-) : BaseWorker(context, params), KoinComponent {
+    private val getAppUsageReportUseCase: GetAppUsageReportUseCase,
+    pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
 
     private val workManager: WorkManager by inject()
 
     override val key: String = TAG
+
+    override val step = PipelineStep.FETCH_APP_USAGE_REPORT
 
     override suspend fun executeWork(): WorkerResult {
         Log.i(TAG, "Executing work ${System.currentTimeMillis()} - Has permission: ${hasUsageAccessPermission()}")

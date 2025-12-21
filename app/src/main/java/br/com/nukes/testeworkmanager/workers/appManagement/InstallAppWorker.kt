@@ -12,6 +12,8 @@ import br.com.nukes.testeworkmanager.domain.models.AppModel
 import br.com.nukes.testeworkmanager.domain.usecases.DeleteByPackageNameUseCase
 import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
 import br.com.nukes.testeworkmanager.utils.Constants.DATA
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.WorkerResult
 import kotlinx.coroutines.delay
@@ -23,8 +25,9 @@ import java.util.concurrent.TimeUnit
 class InstallAppWorker(
     context: Context,
     params: WorkerParameters,
-    private val deleteByPackageNameUseCase: DeleteByPackageNameUseCase
-) : BaseWorker(context, params), KoinComponent {
+    private val deleteByPackageNameUseCase: DeleteByPackageNameUseCase,
+    private val pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
 
     private val workManager: WorkManager by inject()
 
@@ -37,6 +40,8 @@ class InstallAppWorker(
     private val pkgSafe by lazy { appModel.packageName.replace(".", "_") }
 
     override val key: String = "${TAG}_${batchId}_$pkgSafe"
+
+    override val step = PipelineStep.INSTALL_APP
 
     override suspend fun executeWork(): WorkerResult {
         Log.i("Fernando-tag_$TAG", "Executing install app work ${appModel.packageName} in batch $batchId")

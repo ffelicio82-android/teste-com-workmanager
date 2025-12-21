@@ -19,16 +19,16 @@ import org.koin.dsl.module
 val workerModule = module {
     single<WorkManager> { WorkManager.getInstance(get()) }
 
-    worker { WorkerOrchestrator(get(), get(), get()) }
-    worker { InitialWorker(get(), get()) }
-    worker { FetchInstalledAppsWorker(get(), get(), get()) }
-    worker { FetchAppUsageReportWorker(get(), get(), get()) }
-    worker { SendRequestDataWorker(get(), get(), get(), get(), get()) }
-    worker { ProcessAppsWorker(get(), get(), get()) }
-    worker { DownloadWorker(get(), get(), get()) }
-    worker { InstallAppWorker(get(), get(), get()) }
-    worker { UninstallAppWorker(get(), get(), get()) }
-    worker { ProcessBuildWorker(get(), get(), get()) }
-    worker { InstallBuildWorker(get(), get(), get()) }
-    worker { SendNotificationWorker(get(), get()) }
+    worker { WorkerOrchestrator(get(), get(), get(), get()) }
+    worker { InitialWorker(get(), get(), get()) }
+    worker { FetchInstalledAppsWorker(get(), get(), get(), get()) }
+    worker { FetchAppUsageReportWorker(get(), get(), get(), get()) }
+    worker { SendRequestDataWorker(get(), get(), get(), get(), get(), get()) }
+    worker { ProcessAppsWorker(get(), get(), get(), get()) }
+    worker { DownloadWorker(get(), get(), get(), get()) }
+    worker { InstallAppWorker(get(), get(), get(), get()) }
+    worker { UninstallAppWorker(get(), get(), get(), get()) }
+    worker { ProcessBuildWorker(get(), get(), get(), get()) }
+    worker { InstallBuildWorker(get(), get(), get(), get()) }
+    worker { SendNotificationWorker(get(), get(), get()) }
 }

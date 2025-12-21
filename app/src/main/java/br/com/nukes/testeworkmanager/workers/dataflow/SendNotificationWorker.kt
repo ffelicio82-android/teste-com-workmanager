@@ -6,14 +6,17 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkerParameters
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.WorkerResult
 import org.koin.core.component.KoinComponent
 
 class SendNotificationWorker(
     context: Context,
-    params: WorkerParameters
-) : BaseWorker(context, params), KoinComponent {
+    params: WorkerParameters,
+    private val pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
 
     private val batchId by lazy { inputData.getString("batchId") ?: "no_batch" }
 
@@ -21,8 +24,12 @@ class SendNotificationWorker(
 
     override val stopExecutionByKey: Boolean = true
 
+    override val step = PipelineStep.SEND_NOTIFY
+
     override suspend fun executeWork(): WorkerResult {
         Log.i("Fernando-tag_${TAG}", "Executing send notification work in batch $batchId")
+
+        pipelineController.finish()
         return WorkerResult.Success()
     }
 

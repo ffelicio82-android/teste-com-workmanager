@@ -1,6 +1,7 @@
 package br.com.nukes.testeworkmanager.di
 
 val modules = listOf(
+    utilsModule,
     databaseModule,
     preferencesModule,
     networkModule,
@@ -10,4 +11,3 @@ val modules = listOf(
     useCaseModule,
     workerModule
 )
-

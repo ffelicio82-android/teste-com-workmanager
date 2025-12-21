@@ -15,6 +15,8 @@ import br.com.nukes.testeworkmanager.domain.usecases.FetchConfigurationsUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.GetAllUseCase
 import br.com.nukes.testeworkmanager.domain.usecases.SyncDataUseCase
 import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.RetryReason
 import br.com.nukes.testeworkmanager.workers.WorkerResult
@@ -28,12 +30,15 @@ class SendRequestDataWorker(
     params: WorkerParameters,
     private val syncDataUseCase: SyncDataUseCase,
     private val fetchConfigurationsUseCase: FetchConfigurationsUseCase,
-    private val getAllUseCase: GetAllUseCase
-) : BaseWorker(context, params), KoinComponent {
+    private val getAllUseCase: GetAllUseCase,
+    pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
 
     private val workManager: WorkManager by inject()
 
     override val key: String = TAG
+
+    override val step = PipelineStep.SEND_DATA_TO_SERVER
 
     private val configurations: ConfigurationsModel by lazy {
         runBlocking {

@@ -10,18 +10,23 @@ import androidx.work.WorkerParameters
 import br.com.nukes.testeworkmanager.domain.models.AppModel
 import br.com.nukes.testeworkmanager.domain.usecases.DeleteByPackageNameUseCase
 import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.WorkerResult
 import br.com.nukes.testeworkmanager.workers.dataflow.SendNotificationWorker
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import java.util.concurrent.TimeUnit
 
 class InstallBuildWorker(
     context: Context,
     params: WorkerParameters,
-    private val deleteByPackageNameUseCase: DeleteByPackageNameUseCase
-) : BaseWorker(context, params), KoinComponent {
+    private val deleteByPackageNameUseCase: DeleteByPackageNameUseCase,
+    private val pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
 
     private val workManager: WorkManager by inject()
 
@@ -35,8 +40,12 @@ class InstallBuildWorker(
 
     override val key: String = "${TAG}_${batchId}_$pkgSafe"
 
+    override val step = PipelineStep.INSTALL_BUILD
+
     override suspend fun executeWork(): WorkerResult {
         Log.i("Fernando-tag_$TAG}", "Executing install build work ${appModel.packageName} in batch $batchId")
+
+        delay(TimeUnit.MILLISECONDS.toSeconds(3L))
 
         return WorkerResult.Success()
     }

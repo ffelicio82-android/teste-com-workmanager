@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
-import androidx.work.ExistingWorkPolicy
 import androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
@@ -14,6 +13,8 @@ import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
 import br.com.nukes.testeworkmanager.utils.Constants.DATA
 import br.com.nukes.testeworkmanager.utils.Constants.ONE
 import br.com.nukes.testeworkmanager.utils.Constants.ZERO
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,10 +42,13 @@ sealed class RetryReason(val retryLimit: Int, val intervalRetry: Long) {
 abstract class BaseWorker(
     context: Context,
     params: WorkerParameters,
+    private val pipelineController: PipelineController,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : CoroutineWorker(context, params), KoinComponent {
 
     private val workManager: WorkManager by inject()
+
+    protected abstract val step: PipelineStep
 
     abstract val key: String
 
@@ -56,6 +60,8 @@ abstract class BaseWorker(
     abstract suspend fun executeWork() : WorkerResult
 
     override suspend fun doWork(): Result = withContext(dispatcher) {
+        emitRunning()
+
         return@withContext safeExecute {
             try {
                 when (val result = executeWork()) {
@@ -76,19 +82,31 @@ abstract class BaseWorker(
                     is WorkerResult.Failure -> {
                         Log.e("Fernando-tag_${DEFAULT_TAG}", "Critical error. Cannot recover from $key")
                         if (stopExecutionByKey) finishExecutions() else finishAllExecutions()
-                        Result.failure(result.data ?: workDataOf())
+                        emitError(
+                            "Critical error. Cannot recover from $key",
+                            result.data
+                        )
                     }
                 }
             } catch (e: SecurityException) {
                 Log.e("Fernando-tag_${DEFAULT_TAG}", "Security error during work for $key: ${e.message}", e)
                 finishExecutions()
-                Result.failure()
+                emitError("Security error during work for $key: ${e.message}")
             } catch (e: Exception) {
                 Log.e("Fernando-tag_${DEFAULT_TAG}", "Unexpected error during work for $key: ${e.message}", e)
                 applyRetryHandling()
                 Result.success()
             }
         }
+    }
+
+    protected suspend fun emitRunning() {
+        pipelineController.stepRunning(step)
+    }
+
+    protected suspend fun emitError(reason: String, data: Data? = null): Result {
+        pipelineController.error(step, reason, data?.keyValueMap ?: emptyMap())
+        return Result.failure()
     }
 
     protected open suspend fun onBeforeNextWorker() {
@@ -117,7 +135,7 @@ abstract class BaseWorker(
             block()
         } catch (e: Exception) {
             Log.d("Fernando-tag_${DEFAULT_TAG}", "${this::class.simpleName} falhou: ${e.message}")
-            Result.failure()
+            emitError("${this::class.simpleName} falhou: ${e.message}")
         }
     }
 

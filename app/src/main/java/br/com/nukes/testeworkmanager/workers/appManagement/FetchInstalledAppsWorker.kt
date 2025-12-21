@@ -9,6 +9,8 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.usecases.GetInstalledAppsUseCase
 import br.com.nukes.testeworkmanager.utils.Constants
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.WorkerResult
 import kotlinx.serialization.json.Json
@@ -18,12 +20,15 @@ import org.koin.core.component.inject
 class FetchInstalledAppsWorker(
     context: Context,
     params: WorkerParameters,
-    private val getInstalledAppsUseCase: GetInstalledAppsUseCase
-) : BaseWorker(context, params), KoinComponent {
+    private val getInstalledAppsUseCase: GetInstalledAppsUseCase,
+    pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
 
     private val workManager: WorkManager by inject()
 
     override val key: String = TAG
+
+    override val step = PipelineStep.FETCH_INSTALLED_APPS
 
     override suspend fun executeWork(): WorkerResult {
         return try {

@@ -1,4 +1,4 @@
-package br.com.nukes.testeworkmanager.workers.configuration
+package br.com.nukes.testeworkmanager.workers.configuration.pipeline
 
 import androidx.work.WorkManager
 import br.com.nukes.testeworkmanager.workers.dataflow.InitialWorker
@@ -10,6 +10,6 @@ object PipelineManager: KoinComponent {
     private val workManager: WorkManager by inject()
 
     fun initialize() {
-        workManager.enqueue(InitialWorker.configureRequest())
+        workManager.enqueue(InitialWorker.Companion.configureRequest())
     }
 }

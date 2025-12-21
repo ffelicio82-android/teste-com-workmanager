@@ -13,6 +13,8 @@ import br.com.nukes.testeworkmanager.domain.models.DownloadEvent
 import br.com.nukes.testeworkmanager.domain.usecases.DownloadUseCase
 import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
 import br.com.nukes.testeworkmanager.utils.Constants.DATA
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.RetryReason
 import br.com.nukes.testeworkmanager.workers.WorkerResult
@@ -32,8 +34,9 @@ import kotlin.coroutines.cancellation.CancellationException
 class DownloadWorker(
     context: Context,
     params: WorkerParameters,
-    private val downloadUseCase: DownloadUseCase
-) : BaseWorker(context, params), KoinComponent {
+    private val downloadUseCase: DownloadUseCase,
+    private val pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
 
     private val workManager: WorkManager by inject()
 
@@ -46,6 +49,8 @@ class DownloadWorker(
     private val pkgSafe by lazy { appModel.packageName.replace(".", "_") }
     override val key: String = "${TAG}_${batchId}_$pkgSafe"
 
+    override val step = PipelineStep.DOWNLOAD
+
     override suspend fun executeWork(): WorkerResult {
         val packageName = inputData.getString("packageName")
 
@@ -56,6 +61,8 @@ class DownloadWorker(
                 .onEach { downloadEvent ->
                     when (downloadEvent) {
                         is DownloadEvent.Started -> {
+                            pipelineController.stepProgress(PipelineStep.DOWNLOAD_STARTED, appModel, 0)
+
                             setProgress(
                                 workDataOf(
                                     BATCH_ID to batchId,
@@ -66,6 +73,14 @@ class DownloadWorker(
                             Log.i("Fernando-tag_${TAG}", "Download started for ${appModel.packageName} in batch $batchId")
                         }
                         is DownloadEvent.Progress -> {
+                            val processStep = if (downloadEvent.percent < 100) {
+                                PipelineStep.DOWNLOADING
+                            } else {
+                                PipelineStep.DOWNLOADED
+                            }
+
+                            pipelineController.stepProgress(processStep, appModel, downloadEvent.percent)
+
                             setProgress(
                                 workDataOf(
                                     BATCH_ID to batchId,

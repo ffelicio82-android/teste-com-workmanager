@@ -10,6 +10,8 @@ import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.usecases.FetchByPackageNameUseCase
 import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
 import br.com.nukes.testeworkmanager.utils.Constants.DATA
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.WorkerResult
 import br.com.nukes.testeworkmanager.workers.dataflow.DownloadWorker
@@ -21,13 +23,16 @@ import org.koin.core.component.inject
 class ProcessBuildWorker(
     context: Context,
     params: WorkerParameters,
-    private val fetchByPackageNameUseCase: FetchByPackageNameUseCase
-) : BaseWorker(context, params), KoinComponent {
+    private val fetchByPackageNameUseCase: FetchByPackageNameUseCase,
+    pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
     private val workManager: WorkManager by inject()
 
     private val batchId by lazy { inputData.getString(BATCH_ID) ?: "no_batch" }
 
     override val key: String = "${TAG}_$batchId"
+
+    override val step = PipelineStep.PROCESS_BUILD
 
     override suspend fun executeWork(): WorkerResult {
         return try {

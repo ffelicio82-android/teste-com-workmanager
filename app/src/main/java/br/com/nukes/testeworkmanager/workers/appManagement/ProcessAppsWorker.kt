@@ -10,6 +10,8 @@ import androidx.work.workDataOf
 import br.com.nukes.testeworkmanager.domain.usecases.GetAllAppsUseCase
 import br.com.nukes.testeworkmanager.utils.Constants.BATCH_ID
 import br.com.nukes.testeworkmanager.utils.Constants.DATA
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineController
+import br.com.nukes.testeworkmanager.workers.configuration.pipeline.PipelineStep
 import br.com.nukes.testeworkmanager.workers.BaseWorker
 import br.com.nukes.testeworkmanager.workers.WorkerResult
 import br.com.nukes.testeworkmanager.workers.dataflow.DownloadWorker
@@ -23,12 +25,15 @@ class ProcessAppsWorker(
     context: Context,
     params: WorkerParameters,
     private val getAllAppsUseCase: GetAllAppsUseCase,
-) : BaseWorker(context, params), KoinComponent {
+    pipelineController: PipelineController
+) : BaseWorker(context, params, pipelineController), KoinComponent {
     private val workManager: WorkManager by inject()
 
     private val batchId by lazy { inputData.getString(BATCH_ID) ?: "no_batch" }
 
     override val key: String = "${TAG}_$batchId"
+
+    override val step = PipelineStep.PROCESS_APPS
 
     override suspend fun executeWork(): WorkerResult {
         try {
